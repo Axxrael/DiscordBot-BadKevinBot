@@ -12,7 +12,7 @@ clientID = (os.environ.get('CLIENTID'))
 clientSecret = (os.environ.get('CLIENTSECRET'))
 
 botIntents = discord.Intents().default()
-bot = commands.Bot(intents=botIntents)
+bot = commands.Bot(command_prefix='/', intents=botIntents)
 
 
 # Built-in slash commands listed here.
