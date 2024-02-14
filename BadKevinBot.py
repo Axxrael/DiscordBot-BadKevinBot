@@ -53,14 +53,31 @@ def query_database(): # Connects the SQL Day Tracker database to the bot
     currentRecord = cursorDayLeaderboard.fetchone(); # Day counter
     if currentRecord == None:
         currentRecord = 0
+    else:
+        currentRecord = currentRecord[0] # Extract the first element (fetchone returns as a tuple)
     print(f'SELECT `Current Record` FROM `Day Tracker` fetch = {currentRecord}')
 
     cursorDayLeaderboard.execute("SELECT `Personal best (longest streak)` FROM `Day Tracker`") # Grabbing the int value of Personal best from Day Tracker
     personalBest = cursorDayLeaderboard.fetchone(); # Highest Recorded Day
     if personalBest == None:
         personalBest = 0
+    else:
+        personalBest = personalBest[0]
     print(f'SELECT `Personal best (longest streak)` FROM `Day Tracker` = {personalBest}')
+
     return currentRecord, personalBest
+
+
+def update_database(currentRecord, personalBest):
+    cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Current Record`= {currentRecord} +  1 WHERE `Current Record` >  0")
+    print("Updated Current Record SQL")
+    print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
+
+    cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Personal best (longest streak)`= {personalBest} + 1 WHERE `Personal best (longest streak)` > 0")
+    print("Updated Personal best SQL")
+    print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
+
+    databaseDayLeaderboard.commit()
 
 
 # ---------- 24-hour Day Tracking Loop ----------
@@ -73,8 +90,10 @@ async def loopcheck():
 async def on_ready():
     await bot_command.sync_commands() # Sync the commands to Discord
     print(f'Bot is ready. Logged in as {bot_command.user.name}')
-    query_database()
-    'loopcheck.start()'
+    currRecord, perBest = query_database()
+    update_database(currRecord, perBest)
+    currRecord, perBest = query_database()
+    loopcheck.start()
 
 
 bot_command.run(clientSecret)
