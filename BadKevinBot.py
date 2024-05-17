@@ -17,7 +17,7 @@ sqlPassword = (os.environ.get('SQLPASSWORD'))
 named_channel_id = 1205001660976603139 # You can right click on channels to copy their id's (The current Id for BadKevinBot General VC)
 
 botIntents = discord.Intents().default()
-bot_command = commands.Bot(command_prefix="/",intents=botIntents) # Sets the prefix for all commands moving forward
+bot = commands.Bot(command_prefix='/',intents=botIntents) # Sets the prefix for all commands moving forward
 
 databaseDayLeaderboard = mysql.connector.connect( # DayLeaderboard Database connection
     host="gamesnj409.bisecthosting.com",
@@ -30,7 +30,7 @@ cursorDayLeaderboard = databaseDayLeaderboard.cursor() # cursor object
 
 
 # Built-in slash commands listed here.
-@bot_command.slash_command(
+@bot.slash_command(
     name='ping',
     description="A pong for your ping."
 )
@@ -107,13 +107,13 @@ async def change_channel_name(bot, channelId, currRecord): # Changes the name of
 async def loopcheck():
     currRecord, perBest = query_database()
     update_database(currRecord, perBest)
-    await change_channel_name(bot_command, named_channel_id, currRecord)
+    await change_channel_name(bot, named_channel_id, currRecord)
 
-@bot_command.event
+@bot.event
 async def on_ready():
-    await bot_command.sync_commands() # Sync the commands to Discord
-    print(f'Bot is ready. Logged in as {bot_command.user.name}')
+    await bot.sync_commands() # Sync the commands to Discord
+    print(f'Bot is ready. Logged in as {bot.user.name}')
     loopcheck.start()
 
 
-bot_command.run(clientSecret)
+bot.run(clientSecret)
