@@ -48,51 +48,71 @@ async def ping(context):  # the function name should match the @bot.slash_comman
 
 
 def query_database(): # Connects the SQL Day Tracker database to the bot
-    cursorDayLeaderboard.execute("SELECT `Current Record` FROM `Day Tracker`") # Grabbing the int value of Current Record from Day Tracker
-    print('SQL Table Connected!!')
-    currentRecord = cursorDayLeaderboard.fetchone(); # Day counter
-    if currentRecord == None:
-        currentRecord = 0
+    try:
+        cursorDayLeaderboard.execute("SELECT `Current Record` FROM `Day Tracker`") # Grabbing the int value of Current Record from Day Tracker
+        currentRecord = cursorDayLeaderboard.fetchone(); # Day counter
+        if currentRecord == None:
+            currentRecord = 0
+        else:
+            currentRecord = currentRecord[0] # Extract the first element (fetchone returns as a tuple)
+        print(f'SELECT `Current Record` FROM `Day Tracker` fetch = {currentRecord}')
+
+        cursorDayLeaderboard.execute("SELECT `Personal best (longest streak)` FROM `Day Tracker`") # Grabbing the int value of Personal best from Day Tracker
+        personalBest = cursorDayLeaderboard.fetchone(); # Highest Recorded Day
+        if personalBest == None:
+            personalBest = 0
+        else:
+            personalBest = personalBest[0]
+        print(f'SELECT `Personal best (longest streak)` FROM `Day Tracker` = {personalBest}')
+
+        return currentRecord, personalBest
+    except Exception as e: # Error catching
+        print(f"An error occured: {e}")
+        return None, None
+
+
+def update_database(currentRecord, personalBest): # Updates the database's current record and personal best
+    try:
+        currentRecordStr = str(currentRecord)
+        personalBestStr = str(personalBest)
+        cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Current Record`= {currentRecordStr} +  1 WHERE `Current Record` >  0")
+        print("Updated Current Record SQL")
+        print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
+
+        cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Personal best (longest streak)`= {personalBestStr} + 1 WHERE `Personal best (longest streak)` > 0")
+        print("Updated Personal best SQL")
+        print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
+
+        databaseDayLeaderboard.commit()
+    except Exception as e: # Error catching
+        print(f"An error occured during update: {e}")
+
+
+async def change_channel_name(bot, channelId, currRecord): # Changes the name of the channel
+    Voice_Channel = bot.get_channel(channelId)
+    new_name = (f"{currRecord} Days since Kevin said some wacko shit.")
+
+    if Voice_Channel and isinstance(Voice_Channel, discord.VoiceChannel): # Checks if channel exists
+        try:
+            await Voice_Channel.edit(name=new_name)
+            print(f"Successfully renamed channel")
+        except Exception as e:
+            print(f"Failed to rename channel: {e}")
     else:
-        currentRecord = currentRecord[0] # Extract the first element (fetchone returns as a tuple)
-    print(f'SELECT `Current Record` FROM `Day Tracker` fetch = {currentRecord}')
-
-    cursorDayLeaderboard.execute("SELECT `Personal best (longest streak)` FROM `Day Tracker`") # Grabbing the int value of Personal best from Day Tracker
-    personalBest = cursorDayLeaderboard.fetchone(); # Highest Recorded Day
-    if personalBest == None:
-        personalBest = 0
-    else:
-        personalBest = personalBest[0]
-    print(f'SELECT `Personal best (longest streak)` FROM `Day Tracker` = {personalBest}')
-
-    return currentRecord, personalBest
-
-
-def update_database(currentRecord, personalBest):
-    cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Current Record`= {currentRecord} +  1 WHERE `Current Record` >  0")
-    print("Updated Current Record SQL")
-    print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
-
-    cursorDayLeaderboard.execute(f"UPDATE `Day Tracker` SET `Personal best (longest streak)`= {personalBest} + 1 WHERE `Personal best (longest streak)` > 0")
-    print("Updated Personal best SQL")
-    print(f'Rows affected: {cursorDayLeaderboard.rowcount}')
-
-    databaseDayLeaderboard.commit()
+        print("Channel not found")
 
 
 # ---------- 24-hour Day Tracking Loop ----------
 @tasks.loop(seconds=10) # Runs every 24 hours automatically
 async def loopcheck():
-    print("looping")
-
+    currRecord, perBest = query_database()
+    update_database(currRecord, perBest)
+    await change_channel_name(bot_command, named_channel_id, currRecord)
 
 @bot_command.event
 async def on_ready():
     await bot_command.sync_commands() # Sync the commands to Discord
     print(f'Bot is ready. Logged in as {bot_command.user.name}')
-    currRecord, perBest = query_database()
-    update_database(currRecord, perBest)
-    currRecord, perBest = query_database()
     loopcheck.start()
 
 
