@@ -202,15 +202,12 @@ async def reset_channel_name():
 @tasks.loop(hours=1)
 async def daily_update():
     update_current_record('global_stats')
-    # await change_channel_name(bot, BadKevinBotID, currRecord)
     print(f'Updated daily stats.')
 
 
 @bot.event
 async def on_ready():
-    # await bot.sync_commands()  # Sync the commands to Discord
     daily_update.start()
     print(f'Bot is ready. Logged in as {bot.user.name}')
-    # loopcheck.start()
 
 bot.run(clientSecret)
