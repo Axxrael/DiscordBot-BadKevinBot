@@ -30,138 +30,140 @@ databaseCursor = databaseConnection.cursor()
 
 
 # Database-based logic
-def query_database(input_table):  # Queries values from the SQL databse to return to the bot.
+def check_for_server_entry(input_server_id):
+    databaseCursor.execute(fr'SELECT server_id FROM global_stats WHERE server_id={input_server_id}')
+    if databaseCursor.fetchone() is None:
+        try:
+            databaseCursor.execute(fr'INSERT INTO global_stats (server_id, total_reset_amount, best_record, streak_average, last_wacko_message) VALUES ({input_server_id}, 0, 0, 0, "No messages found.")')
+            databaseConnection.commit()
+        except Exception as error:
+            raise fr'This server wasn\'t found in the database, and an error adding this server to the database occured: {error}'
+    else:
+        pass
+
+
+def query_database(input_table, input_server_id):
+
     try:
-        databaseCursor.execute(fr'SELECT current_record FROM {input_table}')
-        current_record_value = databaseCursor.fetchone()[0]  # fetchone returns tuple
-        if current_record_value is None:
-            current_record_value = 0
-
-        databaseCursor.execute(fr'SELECT best_record FROM {input_table}')
-        best_record_value = databaseCursor.fetchone()[0]
-        if best_record_value is None:
-            best_record_value = 0
-
-        databaseCursor.execute(fr'SELECT last_wacko_message FROM {input_table}')
-        last_wacko_message_value = databaseCursor.fetchone()[0]
-        if last_wacko_message_value is None:
-            last_wacko_message_value = 'none'
-
-        databaseCursor.execute(fr'SELECT streak_average FROM {input_table}')
-        streak_average_value = databaseCursor.fetchone()[0]
-        if streak_average_value is None:
-            streak_average_value = 0
-
-        databaseCursor.execute(fr'SELECT total_reset_amount FROM {input_table}')
-        total_reset_amount_value = databaseCursor.fetchone()[0]
-        if total_reset_amount_value is None:
-            total_reset_amount_value = 0
-
-        databaseCursor.execute(fr'SELECT channel_id FROM {input_table}')
+        databaseCursor.execute(fr'SELECT channel_id FROM {input_table} WHERE server_id={input_server_id}')
         channel_id_value = databaseCursor.fetchone()[0]
+        databaseCursor.execute(fr'SELECT total_reset_amount FROM {input_table} WHERE server_id={input_server_id}')
+        total_reset_amount_value = databaseCursor.fetchone()[0]
+        databaseCursor.execute(fr'SELECT best_record FROM {input_table} WHERE server_id={input_server_id}')
+        best_record_value = databaseCursor.fetchone()[0]
+        databaseCursor.execute(fr'SELECT streak_average FROM {input_table} WHERE server_id={input_server_id}')
+        streak_average_value = databaseCursor.fetchone()[0]
+        databaseCursor.execute(fr'SELECT last_wacko_message FROM {input_table} WHERE server_id={input_server_id}')
+        last_wacko_message_value = databaseCursor.fetchone()[0]
 
-        return best_record_value, current_record_value, last_wacko_message_value, streak_average_value, total_reset_amount_value, channel_id_value
+        return channel_id_value, total_reset_amount_value, best_record_value, streak_average_value, last_wacko_message_value
 
     except Exception as error:
-        print(f'An error occured: {error}')
+        print(f'An error occured where querying from table {input_table} for server {input_server_id}: {error}')
         return fr'There was an error while querying the database.'
 
 
-def update_current_record(input_table):
+def update_channel_id(input_table, input_server_id, input_channel_id):
     try:
-        databaseCursor.execute(fr'UPDATE {input_table} SET current_record = current_record + 1')
+        databaseCursor.execute(fr'UPDATE {input_table} SET channel_id = {input_channel_id} WHERE server_id={input_server_id}')
         databaseConnection.commit()
-        print(f'Added 1 to current_record in {input_table}')
-        return fr'Added 1 to Kevin\'s current record. Way to go!'
+        print(f'Changed channel_id in {input_table} to {input_channel_id} for server: {input_server_id}')
+        return fr'Updated the tracking channel to ID:{input_channel_id} for this server.'
 
     except Exception as error:
-        print(f'An error occured during an SQL update adding to current_record in {input_table}: {error}')
-        return fr'There was an error updating the current record. There may be an issue with the database.'
+        print(f'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id} in server: {input_server_id}: {error}')
+        return fr'An error occured during an SQL update changing channel_id to {input_channel_id}: {error}'
 
 
-def update_channel_id(input_table, input_channel_id):
+def reset_current_record(input_table, input_server_id, input_current_record_value):
     try:
-        databaseCursor.execute(fr'UPDATE {input_table} SET channel_id = {input_channel_id}')
+        databaseCursor.execute(fr'UPDATE {input_table} SET total_reset_amount = total_reset_amount + 1 WHERE server_id={input_server_id}')
+        print(input_current_record_value)
+        # update streak_average and best_record here later with input_current_record_value and math
         databaseConnection.commit()
-        print(f'Changed channel_id in {input_table} to {input_channel_id}')
-        return fr'Changed channel_id in {input_table} to {input_channel_id}'
-
-    except Exception as error:
-        print(
-            f'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id}: {error}')
-        return fr'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id}.'
-
-
-def reset_current_record(input_table):
-    try:
-        databaseCursor.execute(fr'UPDATE {input_table} SET current_record = 0')
-        databaseConnection.commit()
-        print(f'Reset current record in {input_table}.')
+        print(fr'Updated total and average for server ({input_server_id}) in table {input_table}.')
         return fr'Reset Kevin\'s current record to zero. Not upset, just disappointed.'
 
     except Exception as error:
-        print(f"An error occured during an SQL update: {error}")
-        return fr'There was an error resetting the current record. There may be an issue with the database.'
-
-
-# Slash command groups: These don't appear to work based on the documentation...
-setCommandGroup = discord.SlashCommandGroup('set', 'Administratively set options for your server.')
+        print(fr'An error occured during an SQL update for total and average for server ({input_server_id}) in table {input_table}: {error}')
+        return fr'There was an error resetting the records in the database: {error}'
 
 
 # Built-in slash commands:
-@bot.slash_command(description='Set the channel that receives name updates.', guild_ids=BadKevinBotID)
-async def set_channel_id(interaction: discord.Interaction, channel_name: discord.VoiceChannel):
-    channel_id = discord.utils.get(bot.get_all_channels(), name=f'{channel_name}').id
-    update_channel = update_channel_id('global_stats', channel_id)
-    await interaction.response.send_message(f'{update_channel}', ephemeral=True)
-
-
-@bot.slash_command(description='Get current Kevin stats.', guild_ids=BadKevinBotID)
+@bot.slash_command(description=fr'Get current Kevin stats.', guild_ids=BadKevinBotID)
 async def stats(context: discord.ApplicationContext):
+    server_id = context.guild.id
+    check_for_server_entry(server_id)
     embed = discord.Embed(
-        title='Kevin\'s current stats:',
+        title=fr'Kevin\'s current stats:',
         color=discord.Color.purple()
     )
-    stat_query = query_database('global_stats')
-    embed.add_field(name='Best Record', value=fr'{stat_query[0]}', inline=False)
-    embed.add_field(name='Current Record:', value=fr'{stat_query[1]}', inline=False)
+    stat_query = query_database('global_stats', server_id)
+    embed.add_field(name='Best Record', value=fr'{stat_query[2]}', inline=False)
     embed.add_field(name='Streak Average:', value=fr'{stat_query[3]}', inline=False)
-    embed.add_field(name='Total Resets:', value=fr'{stat_query[4]}', inline=False)
-    embed.add_field(name='Last Wacko Message:', value=fr'{stat_query[2]}', inline=False)
+    embed.add_field(name='Total Resets:', value=fr'{stat_query[1]}', inline=False)
+    embed.add_field(name='Last Wacko Message:', value=fr'{stat_query[4]}', inline=False)
     await context.respond(embed=embed)
+
+
+@bot.slash_command(description=fr'Set the voice channel that will be renamed to keep track of Kevin\'s current record.', guild_ids=BadKevinBotID)
+async def set_tracking_channel(interaction: discord.Interaction, channel_name: discord.VoiceChannel):
+    server_id = interaction.guild.id
+    check_for_server_entry(server_id)
+    channel_id = discord.utils.get(bot.get_all_channels(), name=f'{channel_name}').id
+    update_channel = update_channel_id('global_stats', server_id, channel_id)
+    await interaction.response.send_message(f'{update_channel}', ephemeral=True)
 
 
 @bot.slash_command(description='Advance Kevin 1 day.', guild_ids=BadKevinBotID)
 async def advance(interaction: discord.Interaction):
-    update_advance = update_current_record('global_stats')
-    await interaction.response.send_message(f'{update_advance}', ephemeral=True)
+    server_id = interaction.guild.id
+    check_for_server_entry(server_id)
+    databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id={server_id}')
+    channel_id = databaseCursor.fetchone()[0]
 
+    if channel_id is None:
+        await interaction.response.send_message(fr'The channel the bot needs to edit doesn\'t appear to be set. You can set it with the **\\set_tracking_channel command**', ephemeral=True)
+    else:
+        voice_channel = bot.get_channel(channel_id)
+        voice_channel_number = re.findall(r'\d+', voice_channel.name)[0]
+        voice_channel_update = voice_channel.name.replace(voice_channel_number, str(int(voice_channel_number)+1), 1)
 
-@bot.slash_command(description='Advance channel name.', guild_ids=BadKevinBotID)
-async def channel(interaction: discord.Interaction):
-    current_record_value = query_database('global_stats')[1]
-    current_channel_id = query_database('global_stats')[5]
-    voice_channel = discord.utils.get(bot.get_all_channels(), id=current_channel_id)
-
-    if voice_channel and isinstance(voice_channel, discord.VoiceChannel):  # Checks if channel exists
         try:
-            await update_channel_name(current_record_value)
-            await interaction.response.send_message(f'Updated count on channel.', ephemeral=True)
+            await voice_channel.edit(name=voice_channel_update)
+            print(fr'Successfully renamed channel {voice_channel.id} to {voice_channel_update}.')
+            await interaction.response.send_message(fr'Added 1 to Kevin\'s current record. Currently at {voice_channel_number} Way to go!', ephemeral=True)
 
         except Exception as error:
-            print(f'Failed to rename channel {voice_channel}: {error}')
-            await interaction.response.send_message(f'Failed to rename channel {voice_channel}.', ephemeral=True)
-    else:
-        print(f'Channel {voice_channel} was not found. Unable to update.')
-        await interaction.response.send_message(f'Channel {voice_channel} wasn\'t not found. Unable to update.',
-                                                ephemeral=True)
+            print(fr'Failed to rename channel {voice_channel.id} to {voice_channel.name}: {error}')
+            await interaction.response.send_message(
+                fr'Failed to rename channel {voice_channel.id} to {voice_channel.name}: {error}', ephemeral=True)
 
 
 @bot.slash_command(description='Reset the clock!', guild_ids=BadKevinBotID)
 async def reset(context: discord.ApplicationContext):
-    update_reset = reset_current_record('global_stats')
-    await reset_channel_name()
-    await context.respond(f'{update_reset}')
+    server_id = context.guild.id
+    databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id={server_id}')
+    channel_id = databaseCursor.fetchone()[0]
+
+    if channel_id is None:
+        await context.response.send_message(fr'The channel the bot needs to edit doesn\'t appear to be set. You can set it with the `\\set_tracking_channel command`', ephemeral=True)
+    else:
+        voice_channel = bot.get_channel(channel_id)
+        voice_channel_number = re.findall(r'\d+', voice_channel.name)[0]
+        voice_channel_reset = voice_channel.name.replace(voice_channel_number, '0', 1)
+
+        try:
+            await voice_channel.edit(name=voice_channel_reset)
+            print(fr'Successfully reset channel {voice_channel.id} to {voice_channel_reset}.')
+            await context.response.send_message(fr'Reset Kevin\'s current record. A graceful fall from {voice_channel_number}. We\'re not upset, just disappointed.', ephemeral=True)
+
+        except Exception as error:
+            print(fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}')
+            await context.response.send_message(fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}', ephemeral=True)
+
+        reset_current_record('global_stats', server_id, voice_channel_number)
+        # Probably move this function logic in here to later edit the reponse based on new records and such.
 
 
 # Reporting:
@@ -290,7 +292,26 @@ async def report(context: discord.ApplicationContext):
                 downvote_voter_array.append(voter)
                 new_downvote_value = int(vote_embed.fields[5].value.replace('`', '')) + 1
                 if new_downvote_value == 1:
-                    await reset_channel_name()
+                    server_id = interaction.guild.id
+                    databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id={server_id}')
+                    channel_id = databaseCursor.fetchone()[0]
+
+                    voice_channel = bot.get_channel(channel_id)
+                    voice_channel_number = re.findall(r'\d+', voice_channel.name)[0]
+                    voice_channel_reset = voice_channel.name.replace(voice_channel_number, '0', 1)
+
+                    try:
+                        await voice_channel.edit(name=voice_channel_reset)
+                        print(fr'Successfully reset channel {voice_channel.id} to {voice_channel_reset}.')
+                        await context.response.send_message(
+                            fr'Reset Kevin\'s current record. A graceful fall from {voice_channel_number}. We\'re not upset, just disappointed.',
+                            ephemeral=True)
+
+                    except Exception as error:
+                        print(fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}')
+                        await context.response.send_message(
+                            fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}',
+                            ephemeral=True)
                 else:
                     pass
 
@@ -310,56 +331,36 @@ async def report(context: discord.ApplicationContext):
     await context.respond(embed=report_embed, ephemeral=True, view=report_view)
 
 
-# Discord-based embeds and logic
-async def update_channel_name(current_record_value):
-    channel_id = query_database('global_stats')[5]
-    voice_channel = bot.get_channel(channel_id)
-    print(voice_channel.name)
-    print(voice_channel.name)
-    new_name = f'[{current_record_value}] days since Kevin said something wacko.'
-
-    if voice_channel and isinstance(voice_channel, discord.VoiceChannel):
-        try:
-            await voice_channel.edit(name=new_name)
-            print(f'Successfully renamed channel {voice_channel.id} to {voice_channel.name}.')
-            return f'Successfully renamed channel {voice_channel.id} to {voice_channel.name}.'
-
-        except Exception as error:
-            print(f'Failed to rename channel: {error}')
-            return f'Failed to rename channel: {error}'
-    else:
-        print(f'Channel ID: {voice_channel.id}: was not found. Unable to update.')
-        return f'Channel ID: {voice_channel.id}: was not found. Unable to update.'
-
-
-async def reset_channel_name():
-    channel_id = query_database('global_stats')[5]
-    voice_channel = bot.get_channel(channel_id)
-
-    if voice_channel and isinstance(voice_channel, discord.VoiceChannel):
-        try:
-            await voice_channel.edit(name=f'[0] days since Kevin said something wacko.')
-            print(f'Successfully renamed channel {voice_channel}.')
-            return f'Successfully renamed channel {voice_channel}.'
-
-        except Exception as error:
-            print(f'Failed to rename channel: {error}')
-            return f'Failed to rename channel: {error}'
-    else:
-        print(f'Channel {voice_channel} was not found. Unable to update.')
-        return f'Channel {voice_channel} was not found. Unable to update.'
-
-
 # Simplified loop, eventually will use DateTime objects that can keep track of other changes such as reports.
 @tasks.loop(hours=24)
 async def daily_update():
-    update_current_record('global_stats')
-    print(f'Updated daily stats.')
+    databaseCursor.execute(fr'SELECT server_id FROM global_stats')
+    servers = databaseCursor.fetchall()
+    server_list = list(sum(servers, ()))
+    for server in server_list:
+        server_id = server
+        databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id={server_id}')
+        channel_id = databaseCursor.fetchone()[0]
+
+        if channel_id is None:
+            pass
+        else:
+            voice_channel = bot.get_channel(channel_id)
+            voice_channel_number = re.findall(r'\d+', voice_channel.name)[0]
+            voice_channel_update = voice_channel.name.replace(voice_channel_number, str(int(voice_channel_number)+1), 1)
+
+            try:
+                await voice_channel.edit(name=voice_channel_update)
+                print(fr'Successfully renamed channel {voice_channel.id} to {voice_channel_update}.')
+
+            except Exception as error:
+                print(fr'Failed to rename channel {voice_channel.id} to {voice_channel.name}: {error}')
 
 
 @bot.event
 async def on_ready():
     print(f'Bot is ready. Logged in as {bot.user.name}')
+    daily_update.start()
 
 
 bot.run(clientSecret)
