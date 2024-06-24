@@ -183,6 +183,9 @@ async def report(context: discord.ApplicationContext):
                 if message.author.id == kevin_author_id:
                     message_label = message.author.display_name[:24]
                     message_content_preview = message.content[:99]
+                    if len(message.attachments) > 0:
+                        message_content_preview = fr'{message_content_preview} | {message.attachments[0].filename}'[:99]
+                        print(message_content_preview)
                     message_id = message.id
                     select_options.append(
                         discord.SelectOption(
@@ -192,7 +195,7 @@ async def report(context: discord.ApplicationContext):
                         )
                     )
 
-            report_view = discord.ui.View()
+            report_view = discord.ui.View(timeout=None)
 
             message_selection = discord.ui.Select(custom_id='Message Selection',
                                                   placeholder='The last few of Kevin\'s chat in this channel are below.',
@@ -262,7 +265,7 @@ async def report(context: discord.ApplicationContext):
                 vote_embed.add_field(name='Passes:', value='`0`', inline=True)
                 vote_embed.add_field(name='Wacko:', value='`0`', inline=True)
 
-                vote_view = discord.ui.View()
+                vote_view = discord.ui.View(timeout=86400, disable_on_timeout=True)
 
                 upvote_button = discord.ui.Button(label='Acceptable...', style=discord.ButtonStyle.green, emoji='🆗', custom_id='Upvote Button')
 
