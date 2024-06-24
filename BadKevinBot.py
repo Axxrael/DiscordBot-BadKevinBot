@@ -1,6 +1,6 @@
 import os
 import re
-import mysql.connector
+import pymysql.cursors
 from dotenv import load_dotenv
 import discord
 from discord.ext import tasks
@@ -9,22 +9,23 @@ from discord.ext import tasks
 # ---------- VARIABLES AND INFORMATION ----------
 # Load the environment file for protected Discord Bot information.
 load_dotenv()
-publicKey = (os.environ.get('PUBLICKEY'))
-clientID = (os.environ.get('CLIENTID'))
-clientSecret = (os.environ.get('CLIENTSECRET'))
-sqlPassword = (os.environ.get('SQLPASSWORD'))
+publicKey = os.environ.get('PUBLICKEY')
+clientID = os.environ.get('CLIENTID')
+clientSecret = os.environ.get('CLIENTSECRET')
+sqlPassword = os.environ.get('SQLPASSWORD')
 BadKevinBotID = [1205001660145995776]
 kevin_author_id = 200696839639531523
 
 intents = discord.Intents.default()
 bot = discord.Bot()
 
-databaseConnection = mysql.connector.connect(
+databaseConnection = pymysql.connect(
     host='gamesnj409.bisecthosting.com',
-    port='3306',
     user='u82778_voWyKm3ryk',
     password=sqlPassword,
-    database='s82778_DayLeaderboard'
+    database='s82778_DayLeaderboard',
+    port=3306,
+    # cursorclass=pymysql.cursors.DictCursor
 )
 databaseCursor = databaseConnection.cursor()
 
@@ -349,6 +350,7 @@ async def daily_update():
     databaseCursor.execute(fr'SELECT server_id FROM global_stats')
     servers = databaseCursor.fetchall()
     server_list = list(sum(servers, ()))
+
     for server in server_list:
         server_id = server
         databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id = {server_id}')
