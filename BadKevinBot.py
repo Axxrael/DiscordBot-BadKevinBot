@@ -276,7 +276,7 @@ async def report(context: discord.ApplicationContext):
                         new_downvote_value = int(vote_embed.fields[5].value.replace('`', '')) + 1
                         nonlocal report_complete_flag
 
-                        if new_downvote_value == 1 and report_complete_flag is False:
+                        if new_downvote_value >= 5 and report_complete_flag is False:
                             report_complete_flag = True
 
                             current_record = re.findall(r'\d+', voice_channel.name)[0]
