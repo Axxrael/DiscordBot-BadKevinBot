@@ -59,7 +59,7 @@ def query_database(input_table, input_server_id):
         return channel_id_value, total_reset_amount_value, best_record_value, streak_average_value, last_wacko_message_value
 
     except Exception as error:
-        print(f'An error occured where querying from table {input_table} for server {input_server_id}: {error}')
+        print(fr'An error occured where querying from table {input_table} for server {input_server_id}: {error}')
         return fr'There was an error while querying the database.'
 
 
@@ -67,15 +67,36 @@ def update_channel_id(input_table, input_server_id, input_channel_id):
     try:
         databaseCursor.execute(fr'UPDATE {input_table} SET channel_id = {input_channel_id} WHERE server_id = {input_server_id}')
         databaseConnection.commit()
-        print(f'Changed channel_id in {input_table} to {input_channel_id} for server: {input_server_id}')
+        print(fr'Changed channel_id in {input_table} to {input_channel_id} for server: {input_server_id}')
         return fr'Updated the tracking channel to ID:{input_channel_id} for this server.'
 
     except Exception as error:
-        print(f'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id} in server: {input_server_id}: {error}')
+        print(fr'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id} in server: {input_server_id}: {error}')
         return fr'An error occured during an SQL update changing channel_id to {input_channel_id}: {error}'
 
 
 # Built-in slash commands:
+@bot.slash_command(description=fr'Get current Kevin stats. [Work In Progress]', guild_ids=BadKevinBotID)
+async def help(context: discord.ApplicationContext):
+    server_id = context.guild.id
+    check_for_server_entry(server_id)
+    help_embed = discord.Embed(
+        title=fr'Kevin Bot information:',
+        description=fr'This bot helps report Kevin for questionable content and allows server members to vote to decide if what he said is wacko or not. If a vote passes as wacko the bot will update a voice channel with a reset to his current record.',
+        color=discord.Color.green()
+    )
+    help_embed.add_field(name='', value='', inline=False)
+    help_embed.add_field(name='**General Information:**', value=fr'This bot needs permissions to `read messages`, `post messages` with `embeds`, and the ability to `change channel names`. When a report is made it looks in the current channel only for recent messages hard coded for Kevin\'s user ID. The bot will also rename a designated channel every `24 hours`', inline=False)
+    help_embed.add_field(name='', value='', inline=False)
+    help_embed.add_field(name='Commands:', value='', inline=False)
+    help_embed.add_field(name='`/stats`', value='This command will give the user a personel embed with the stats of Kevin based on the server. Keeps track of things like: Best Record, Streak Average, Total Resets.', inline=False)
+    help_embed.add_field(name='', value='', inline=False)
+    help_embed.add_field(name='`/set_tracking_channel`', value=fr'This is a command that allows users to set the channel in the server that will act as the tracker of Kevin\'s current record. The bot expects a number in the channel name as the day variable. If another number comes before it the bot may misinterpret where the variable is supposed to be. Only users that can control channels should have access to this command to avoid channel name manipulation.', inline=False)
+    help_embed.add_field(name='', value='', inline=False)
+    help_embed.add_field(name='`/report`', value=fr'This is the primary command that users should be able to have access to and start a report. Currently hard coded to 5 votes before a report is complete.', inline=False)
+    await context.respond(embed=help_embed, ephemeral=True)
+
+
 @bot.slash_command(description=fr'Get current Kevin stats. [Work In Progress]', guild_ids=BadKevinBotID)
 async def stats(context: discord.ApplicationContext):
     server_id = context.guild.id
@@ -101,58 +122,6 @@ async def set_tracking_channel(interaction: discord.Interaction, channel_name: d
     await interaction.response.send_message(f'{update_channel}', ephemeral=True, delete_after=60)
 
 
-@bot.slash_command(description='Reset the clock!', guild_ids=BadKevinBotID)
-async def reset(context: discord.ApplicationContext):
-    server_id = context.guild.id
-    check_for_server_entry(server_id)
-    databaseCursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id = {server_id}')
-    channel_id = databaseCursor.fetchone()[0]
-
-    if channel_id is None:
-        await context.response.send_message(fr'The channel the bot needs to edit doesn\'t appear to be set. You can set it with the `\\set_tracking_channel command`', ephemeral=True)
-    else:
-        voice_channel = bot.get_channel(channel_id)
-        if len(re.findall(r'\d+', voice_channel.name)) <= 0:
-            await context.response.send_message(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere.', ephemeral=True)
-            print(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere.')
-        else:
-            current_record = re.findall(r'\d+', voice_channel.name)[0]
-            voice_channel_reset = voice_channel.name.replace(current_record, '0', 1)
-
-            databaseCursor.execute(fr'UPDATE global_stats SET total_reset_amount = total_reset_amount + 1 WHERE server_id = {server_id}')
-            databaseConnection.commit()
-            databaseCursor.execute(fr'SELECT total_reset_amount FROM global_stats WHERE server_id = {server_id}')
-            total_reset_amount = databaseCursor.fetchone()[0]
-            databaseCursor.execute(fr'SELECT best_record FROM global_stats WHERE server_id = {server_id}')
-            best_record = databaseCursor.fetchone()[0]
-            databaseCursor.execute(fr'SELECT streak_average FROM global_stats WHERE server_id = {server_id}')
-            streak_average = databaseCursor.fetchone()[0]
-
-            new_streak_average = round((int(streak_average) + int(current_record))/int(total_reset_amount))
-            databaseCursor.execute(fr'UPDATE global_stats SET streak_average = {new_streak_average} WHERE server_id = {server_id}')
-            databaseConnection.commit()
-
-            if int(best_record) <= int(current_record):
-                try:
-                    databaseCursor.execute(fr'UPDATE global_stats SET best_record = {current_record} WHERE server_id = {server_id}')
-                    databaseConnection.commit()
-
-                    await voice_channel.edit(name=voice_channel_reset)
-                    print(fr'Successfully reset channel {voice_channel.id} to {voice_channel_reset}.')
-
-                    await context.response.send_message(fr'Reset Kevin\'s current record. A graceful fall from `{current_record}`. At least you do have a new best record! We believe you can do better Kevin!')
-
-                except Exception as error:
-                    print(fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}')
-                    await context.response.send_message(fr'Failed to reset channel {voice_channel.id} to {voice_channel.name}: {error}', ephemeral=True, delete_after=60)
-
-            else:
-                await voice_channel.edit(name=voice_channel_reset)
-                print(fr'Successfully reset channel {voice_channel.id} to {voice_channel_reset}.')
-                await context.response.send_message(fr'Reset Kevin\'s current record. A less than graceful fall from `{current_record}`. We\'re not upset, just disappointed.')
-
-
-# Reporting:
 @bot.slash_command(description='Report Kevin for crimes agains the server...', guild_ids=BadKevinBotID)
 async def report(context: discord.ApplicationContext):
     server_id = context.guild.id
@@ -183,6 +152,9 @@ async def report(context: discord.ApplicationContext):
                 if message.author.id == kevin_author_id:
                     message_label = message.author.display_name[:24]
                     message_content_preview = message.content[:99]
+                    if len(message.attachments) > 0:
+                        message_content_preview = fr'{message_content_preview} | {message.attachments[0].filename}'[:99]
+                        print(message_content_preview)
                     message_id = message.id
                     select_options.append(
                         discord.SelectOption(
@@ -192,7 +164,7 @@ async def report(context: discord.ApplicationContext):
                         )
                     )
 
-            report_view = discord.ui.View()
+            report_view = discord.ui.View(timeout=None)
 
             message_selection = discord.ui.Select(custom_id='Message Selection',
                                                   placeholder='The last few of Kevin\'s chat in this channel are below.',
@@ -262,7 +234,7 @@ async def report(context: discord.ApplicationContext):
                 vote_embed.add_field(name='Passes:', value='`0`', inline=True)
                 vote_embed.add_field(name='Wacko:', value='`0`', inline=True)
 
-                vote_view = discord.ui.View()
+                vote_view = discord.ui.View(timeout=86400, disable_on_timeout=True)
 
                 upvote_button = discord.ui.Button(label='Acceptable...', style=discord.ButtonStyle.green, emoji='🆗', custom_id='Upvote Button')
 
@@ -321,6 +293,8 @@ async def report(context: discord.ApplicationContext):
 
                             new_streak_average = round((int(streak_average) + int(current_record)) / int(total_reset_amount))
                             databaseCursor.execute(fr'UPDATE global_stats SET streak_average = {new_streak_average} WHERE server_id = {server_id}')
+                            databaseConnection.commit()
+                            databaseCursor.execute(fr'UPDATE global_stats SET last_wacko_message = {message_content.content} WHERE server_id = {server_id}')
                             databaseConnection.commit()
 
                             if int(best_record) <= int(current_record):
