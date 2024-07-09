@@ -30,8 +30,7 @@ database_cursor = database_connection.cursor()
 
 
 # Database-based logic
-def check_for_server_entry(
-        input_server_id):  # This is a common function that ensures a server already has an entry with settings. If not it creates one with default settings.
+def check_for_server_entry(input_server_id):  # This is a common function that ensures a server already has an entry with settings. If not it creates one with default settings.
     database_cursor.execute(fr'SELECT server_id FROM global_stats WHERE server_id = {input_server_id}')
     if database_cursor.fetchone() is None:
         try:
@@ -42,7 +41,6 @@ def check_for_server_entry(
             raise fr'This server wasn\'t found in the database, and an error adding this server to the database occured: {error}'
     else:
         pass
-    database_connection.close()
 
 
 def query_database(input_table, input_server_id):
@@ -58,12 +56,9 @@ def query_database(input_table, input_server_id):
         database_cursor.execute(fr'SELECT last_wacko_message FROM {input_table} WHERE server_id = {input_server_id}')
         last_wacko_message_value = database_cursor.fetchone()[0]
 
-        database_connection.close()
-
         return channel_id_value, total_reset_amount_value, best_record_value, streak_average_value, last_wacko_message_value
 
     except Exception as error:
-        database_connection.close()
         print(fr'An error occured where querying from table {input_table} for server {input_server_id}: {error}')
         return fr'There was an error while querying the database.'
 
@@ -73,13 +68,10 @@ def update_channel_id(input_table, input_server_id, input_channel_id):
         database_cursor.execute(fr'UPDATE {input_table} SET channel_id = {input_channel_id} WHERE server_id = {input_server_id}')
         database_connection.commit()
 
-        database_connection.close()
-
         print(fr'Changed channel_id in {input_table} to {input_channel_id} for server: {input_server_id}')
         return fr'Updated the tracking channel to ID:{input_channel_id} for this server.'
 
     except Exception as error:
-        database_connection.close()
         print(fr'An error occured during an SQL update changing channel_id in {input_table} to {input_channel_id} in server: {input_server_id}: {error}')
         return fr'An error occured during an SQL update changing channel_id to {input_channel_id}: {error}'
 
@@ -87,8 +79,6 @@ def update_channel_id(input_table, input_server_id, input_channel_id):
 # Built-in slash commands:
 @bot.slash_command(description=fr'Information and commands/requirements for the bot.')
 async def help(context: discord.ApplicationContext):
-    server_id = context.guild.id
-    check_for_server_entry(server_id)
     help_embed = discord.Embed(
         title=fr'Kevin Bot information:',
         description=fr'This bot helps report Kevin for questionable content and allows server members to vote to decide if what he said is wacko or not. If a vote passes as wacko the bot will update a voice channel with a reset to his current record.',
@@ -111,11 +101,15 @@ async def help(context: discord.ApplicationContext):
     help_embed.add_field(name='`/report`',
                          value=fr'This is the primary command that users should be able to have access to and start a report. Currently hard coded to 5 votes before a report is complete.',
                          inline=False)
+
     await context.respond(embed=help_embed, ephemeral=True)
 
 
 @bot.slash_command(description=fr'Get current Kevin stats. [Work In Progress]')
 async def stats(context: discord.ApplicationContext):
+    if not database_connection.open:
+        database_connection.ping(reconnect=True)
+
     server_id = context.guild.id
     check_for_server_entry(server_id)
     embed = discord.Embed(
@@ -127,25 +121,32 @@ async def stats(context: discord.ApplicationContext):
     embed.add_field(name='Streak Average:', value=fr'{stat_query[3]}', inline=False)
     embed.add_field(name='Total Resets:', value=fr'{stat_query[1]}', inline=False)
     embed.add_field(name='Last Wacko Message:', value=fr'{stat_query[4]}', inline=False)
+
     await context.respond(embed=embed, ephemeral=True)
 
 
 @bot.slash_command(description=fr'Set the voice channel that will be renamed to keep track of Kevin\'s current record.')
 async def set_tracking_channel(interaction: discord.Interaction, channel_name: discord.VoiceChannel):
+    if not database_connection.open:
+        database_connection.ping(reconnect=True)
+    
     server_id = interaction.guild.id
     check_for_server_entry(server_id)
     channel_id = discord.utils.get(bot.get_all_channels(), name=f'{channel_name}').id
     update_channel = update_channel_id('global_stats', server_id, channel_id)
+
     await interaction.response.send_message(f'{update_channel}', ephemeral=True, delete_after=60)
 
 
 @bot.slash_command(description='Report Kevin for crimes agains the server...')
 async def report(context: discord.ApplicationContext):
+    if not database_connection.open:
+        database_connection.ping(reconnect=True)
+    
     server_id = context.guild.id
     check_for_server_entry(server_id)
     database_cursor.execute(fr'SELECT channel_id FROM global_stats WHERE server_id = {server_id}')
     channel_id = database_cursor.fetchone()[0]
-    database_connection.close()
 
     if channel_id is None:
         await context.response.send_message(fr'The channel the bot needs to edit doesn\'t appear to be set. The bot can\'t report correctly with out it. You can set it with the `\\set_tracking_channel command`', ephemeral=True)
@@ -153,7 +154,6 @@ async def report(context: discord.ApplicationContext):
     else:
         voice_channel = bot.get_channel(channel_id)
         if len(re.findall(r'\d+', voice_channel.name)) <= 0:
-            database_connection.close()
             print(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere.')
             await context.response.send_message(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere before reporting.', ephemeral=True)
 
@@ -322,13 +322,11 @@ async def report(context: discord.ApplicationContext):
 
                                 database_cursor.execute(fr'UPDATE global_stats SET last_wacko_message = "{message_content.content}" WHERE server_id = {server_id}')
                                 database_connection.commit()
-                                database_connection.close()
 
                                 if int(best_record) <= int(current_record):
                                     try:
                                         database_cursor.execute(fr'UPDATE global_stats SET best_record = {current_record} WHERE server_id = {server_id}')
                                         database_connection.commit()
-                                        database_connection.close()
 
                                         vote_embed.set_field_at(index=3, name='', value=f'''```ansi
 [2;31m[1;31mThe server has spoken and Kevin has been found guilty![0m[2;31m[0m
@@ -383,6 +381,9 @@ async def daily_update():
         # cursorclass=pymysql.cursors.DictCursor
     )
     database_cursor_update = database_connection_update.cursor()
+    
+    if not database_connection.open:
+        database_connection.ping(reconnect=True)
 
     database_cursor_update.execute(fr'SELECT server_id FROM global_stats')
     servers = database_cursor_update.fetchall()
@@ -420,7 +421,8 @@ async def daily_update():
                 except Exception as error:
                     print(fr'Failed to daily update channel {voice_channel.id} to {voice_channel.name}: {error}')
 
-    database_connection_update.close()
+    if database_connection_update.open:
+        database_connection_update.close()
 
 
 @bot.event
