@@ -398,7 +398,7 @@ async def daily_update():
             pass
         else:
             voice_channel = bot.get_channel(channel_id)
-            if len(re.findall(r'\d+', voice_channel.name)) <= 0:
+            if len(re.findall(r'-?\d+', voice_channel.name)) <= 0:
                 print(fr'Skipping {voice_channel} due to having no numbers.')
                 pass
             else:
@@ -427,7 +427,9 @@ async def daily_update():
 
 @bot.event
 async def on_ready():
-    print(f'Bot is ready. Logged in as {bot.user.name}')
+    print(f'successfully finished startup')
+    print(f'Bot is ready. Logged in as {bot.user.name}.')
+
     daily_update.start()
 
 
