@@ -153,7 +153,7 @@ async def report(context: discord.ApplicationContext):
 
     else:
         voice_channel = bot.get_channel(channel_id)
-        if len(re.findall(r'\d+', voice_channel.name)) <= 0:
+        if len(re.findall(r'-?\d+', voice_channel.name)) <= 0:
             print(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere.')
             await context.response.send_message(fr'The channel name: `{voice_channel.name}` doesn\'t appear to have a record (number) in it. Ensure there is a number to act as the record somewhere before reporting.', ephemeral=True)
 
@@ -304,7 +304,7 @@ async def report(context: discord.ApplicationContext):
                             if new_downvote_value >= 5 and report_complete_flag is False:
                                 report_complete_flag = True
 
-                                current_record = re.findall(r'\d+', voice_channel.name)[0]
+                                current_record = re.findall(r'-?\d+', voice_channel.name)[0]
                                 voice_channel_reset = voice_channel.name.replace(current_record, '0', 1)
 
                                 database_cursor.execute(fr'UPDATE global_stats SET total_reset_amount = total_reset_amount + 1 WHERE server_id = {server_id}')
