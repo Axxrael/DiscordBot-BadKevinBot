@@ -402,7 +402,7 @@ async def daily_update():
                 print(fr'Skipping {voice_channel} due to having no numbers.')
                 pass
             else:
-                current_record = re.findall(r'\d+', voice_channel.name)[0]
+                current_record = re.findall(r'-?\d+', voice_channel.name)[0]
                 new_record = str(int(current_record) + 1)
                 voice_channel_update = voice_channel.name.replace(current_record, new_record, 1)
 
